@@ -127,6 +127,36 @@ paths:
         "201":
           description: API key minted (shown once)
 
+  /api/v1/auth/api-keys:
+    get:
+      tags: [auth]
+      summary: List API keys for the current tenant (JWT required; never returns plaintext)
+      parameters:
+        - { in: query, name: include_revoked, schema: { type: boolean, default: false } }
+      responses: { "200": { description: list of keys } }
+
+  /api/v1/auth/api-keys/{key_id}/rotate:
+    post:
+      tags: [auth]
+      summary: Rotate an API key — old secret stops working immediately
+      parameters:
+        - { in: path, name: key_id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: New plaintext secret (shown once)
+        "404": { description: api_key_not_found }
+        "409": { description: api_key_revoked }
+
+  /api/v1/auth/api-keys/{key_id}:
+    delete:
+      tags: [auth]
+      summary: Soft-revoke an API key (idempotent)
+      parameters:
+        - { in: path, name: key_id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: revoked }
+        "404": { description: api_key_not_found }
+
   /api/v1/extract:
     post:
       tags: [extract]
@@ -209,6 +239,22 @@ paths:
     get:
       tags: [tenants]
       responses: { "200": { description: usage stats } }
+
+  /api/v1/tenants/webhook-secret:
+    get:
+      tags: [tenants]
+      summary: Whether a webhook secret is configured (never returns the secret)
+      responses: { "200": { description: status } }
+    delete:
+      tags: [tenants]
+      summary: Disable webhook signing
+      responses: { "204": { description: deleted } }
+
+  /api/v1/tenants/webhook-secret/rotate:
+    post:
+      tags: [tenants]
+      summary: Generate and store a new webhook signing secret (plaintext shown once)
+      responses: { "200": { description: new secret } }
 
   /api/v1/health:
     get:

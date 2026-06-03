@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 from app.core.database import db_session
 from app.core.logging import get_logger
 from app.models.document import Document, DocumentStatus
+from app.models.tenant import Tenant
 from app.services.storage import storage_service
 from app.services.webhook import post_webhook
 from app.workers.celery_app import celery_app
@@ -36,7 +37,9 @@ def process_document(self, document_id: str, webhook_url: str | None = None) -> 
             response.processing_time_ms = elapsed_ms
 
             if webhook_url:
-                send_webhook.delay(webhook_url, response.model_dump())
+                tenant = db.get(Tenant, doc.tenant_id)
+                secret = tenant.webhook_secret if tenant else None
+                send_webhook.delay(webhook_url, response.model_dump(), secret)
             return response.model_dump()
         except Exception as exc:
             doc.status = DocumentStatus.FAILED
@@ -46,9 +49,9 @@ def process_document(self, document_id: str, webhook_url: str | None = None) -> 
 
 
 @celery_app.task(name="app.workers.tasks.send_webhook", bind=True, max_retries=5)
-def send_webhook(self, url: str, payload: dict) -> dict:
+def send_webhook(self, url: str, payload: dict, secret: str | None = None) -> dict:
     try:
-        status = post_webhook(url, payload)
+        status = post_webhook(url, payload, secret=secret)
         return {"status": "delivered", "http_status": status}
     except Exception as exc:
         log.warning("webhook_retry", url=url, attempt=self.request.retries, error=str(exc))

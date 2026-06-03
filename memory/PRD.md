@@ -90,10 +90,24 @@ client → nginx (TLS, per-IP rate-limit) → FastAPI api (uvicorn x4)
   `docker compose up` — not exercisable inside the current sandbox per user choice (1a).
 
 ## Backlog (P0/P1/P2)
-- P1: Webhook signature verification example in docs
-- P1: Per-tenant API-key rotation endpoint
+- ~~P1: Webhook signature verification example in docs~~ ✅ done 2026-02-02
+- ~~P1: Per-tenant API-key rotation endpoint~~ ✅ done 2026-02-02
 - P2: Async webhook retry visibility (Celery flower)
 - P2: Per-document-type prompts (DELIVERY_CHALLAN, EWAY_BILL specialised hints)
 - P2: GST portal cross-verification (vendor GSTIN active check)
 - P2: Field-level human review UI (separate React app)
 - P2: S3 lifecycle policy for cold/glacier tiering after 90 days
+
+## 2026-02-02 update — P1 items shipped
+- Added Stripe-style HMAC-SHA256 webhook signing: `X-DocExtract-Signature: t=<unix>,v1=<hex>` plus `X-DocExtract-Timestamp`, signed payload = `f"{ts}.{body}"`, replay window 300s, constant-time compare.
+- New endpoints (JWT-only, tenant-scoped):
+  - `GET /api/v1/auth/api-keys` (optionally `?include_revoked=true`)
+  - `POST /api/v1/auth/api-keys/{id}/rotate` → returns new plaintext once, old stops working immediately
+  - `DELETE /api/v1/auth/api-keys/{id}` → soft revoke (idempotent), revoked keys skipped at auth time
+  - `GET /api/v1/tenants/webhook-secret` → `{configured: bool}` (never returns the secret)
+  - `POST /api/v1/tenants/webhook-secret/rotate` → returns new `whsec_…` plaintext once
+  - `DELETE /api/v1/tenants/webhook-secret` → disables signing
+- Schema migration: `0002_webhook_and_key_revoke.py` adds `tenants.webhook_secret` + `api_keys.revoked_at`.
+- Worker now looks up tenant `webhook_secret` and passes it to `send_webhook`.
+- Docs: `docs/webhook_verification.md` with Python (FastAPI) + Node (Express) verification examples.
+- Tests added: 7 webhook-signature unit tests, 8 API-key lifecycle integration tests (rotate, revoke, cross-tenant isolation, idempotency, API-key auth rejected for key management), 4 webhook-secret integration tests. **Total now 43 passing tests.**

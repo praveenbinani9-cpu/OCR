@@ -13,6 +13,7 @@ class Tenant(UUIDPKMixin, TimestampMixin, Base):
     api_key_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     plan: Mapped[str] = mapped_column(String(50), default="free", nullable=False)
     rate_limit: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
+    webhook_secret: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     users = relationship("User", back_populates="tenant", cascade="all,delete-orphan")
     documents = relationship("Document", back_populates="tenant", cascade="all,delete-orphan")

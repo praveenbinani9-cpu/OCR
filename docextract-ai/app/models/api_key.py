@@ -18,6 +18,7 @@ class APIKey(UUIDPKMixin, TimestampMixin, Base):
     key_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     last_used: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rate_limit_per_minute: Mapped[int] = mapped_column(Integer, default=60, nullable=False)
 
     tenant = relationship("Tenant", back_populates="api_keys")

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr, Field
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 class TokenRequest(BaseModel):
@@ -24,3 +26,22 @@ class APIKeyCreated(BaseModel):
     name: str
     api_key: str = Field(description="Plaintext key — shown once. Store securely.")
     rate_limit_per_minute: int
+
+
+class APIKeyOut(BaseModel):
+    """Safe representation — never includes plaintext key."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    rate_limit_per_minute: int
+    last_used: datetime | None = None
+    revoked_at: datetime | None = None
+    created_at: datetime
+
+
+class APIKeyRotated(APIKeyCreated):
+    """Returned by POST /auth/api-keys/{id}/rotate. Plaintext shown once."""
+
+    rotated_at: datetime

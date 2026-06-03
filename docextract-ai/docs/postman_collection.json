@@ -16,6 +16,7 @@
   "variable": [
     { "key": "base_url", "value": "http://localhost:8000" },
     { "key": "api_key", "value": "dx_replace_me" },
+    { "key": "api_key_id", "value": "" },
     { "key": "jwt", "value": "" },
     { "key": "document_id", "value": "" },
     { "key": "review_item_id", "value": "" }
@@ -51,6 +52,39 @@
               "mode": "raw",
               "raw": "{\n  \"name\": \"production-key\",\n  \"rate_limit_per_minute\": 120\n}"
             }
+          }
+        },
+        {
+          "name": "List API Keys",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/auth/api-keys?include_revoked=false"
+          }
+        },
+        {
+          "name": "Rotate API Key",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+            },
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/api-keys/{{api_key_id}}/rotate"
+          }
+        },
+        {
+          "name": "Revoke API Key",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+            },
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/auth/api-keys/{{api_key_id}}"
           }
         }
       ]
@@ -150,6 +184,39 @@
             "method": "GET",
             "url": "{{base_url}}/api/v1/tenants/usage",
             "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }]
+          }
+        },
+        {
+          "name": "Webhook Secret Status",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+            },
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/tenants/webhook-secret"
+          }
+        },
+        {
+          "name": "Rotate Webhook Secret",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+            },
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/tenants/webhook-secret/rotate"
+          }
+        },
+        {
+          "name": "Delete Webhook Secret",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+            },
+            "method": "DELETE",
+            "url": "{{base_url}}/api/v1/tenants/webhook-secret"
           }
         }
       ]

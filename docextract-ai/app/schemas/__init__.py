@@ -2,6 +2,8 @@
 from app.schemas.auth import (
     APIKeyCreate,
     APIKeyCreated,
+    APIKeyOut,
+    APIKeyRotated,
     TokenRequest,
     TokenResponse,
 )
@@ -14,11 +16,19 @@ from app.schemas.extraction import (
     ValidationResult,
 )
 from app.schemas.review import ReviewItemOut, ReviewUpdate
-from app.schemas.tenant import TenantCreate, TenantOut, TenantUsage
+from app.schemas.tenant import (
+    TenantCreate,
+    TenantOut,
+    TenantUsage,
+    WebhookSecretCreated,
+    WebhookSecretOut,
+)
 
 __all__ = [
     "APIKeyCreate",
     "APIKeyCreated",
+    "APIKeyOut",
+    "APIKeyRotated",
     "TokenRequest",
     "TokenResponse",
     "DocumentOut",
@@ -33,4 +43,6 @@ __all__ = [
     "TenantCreate",
     "TenantOut",
     "TenantUsage",
+    "WebhookSecretCreated",
+    "WebhookSecretOut",
 ]

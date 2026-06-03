@@ -64,8 +64,8 @@ def _resolve_jwt(token: str, db: Session) -> Principal:
 
 
 def _resolve_api_key(raw_key: str, db: Session) -> Principal:
-    """Try every active key for the tenant prefix-less storage uses bcrypt — verify all."""
-    keys = db.execute(select(APIKey)).scalars().all()
+    """Try every active key — bcrypt-hashed so brute compare. Skip revoked keys."""
+    keys = db.execute(select(APIKey).where(APIKey.revoked_at.is_(None))).scalars().all()
     for key in keys:
         if verify_api_key(raw_key, key.key_hash):
             key.last_used = datetime.now(timezone.utc)

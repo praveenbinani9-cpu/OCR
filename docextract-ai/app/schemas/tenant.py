@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -27,3 +29,12 @@ class TenantUsage(BaseModel):
     review_queue_size: int
     plan: str
     rate_limit: int
+
+
+class WebhookSecretOut(BaseModel):
+    configured: bool
+
+
+class WebhookSecretCreated(BaseModel):
+    secret: str = Field(description="Plaintext webhook secret. Shown once. Store securely.")
+    created_at: datetime
