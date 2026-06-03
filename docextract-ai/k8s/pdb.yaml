@@ -1,0 +1,19 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: docextract-api-pdb
+  namespace: docextract
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: { app: docextract, component: api }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: docextract-worker-pdb
+  namespace: docextract
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: { app: docextract, component: worker }

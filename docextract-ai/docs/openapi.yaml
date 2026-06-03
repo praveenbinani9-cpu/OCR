@@ -1,0 +1,227 @@
+openapi: 3.0.3
+info:
+  title: DocExtract AI
+  description: Production-grade document intelligence SaaS API for Indian GST documents.
+  version: 1.0.0
+  contact:
+    name: DocExtract AI Support
+servers:
+  - url: https://api.docextract.ai
+  - url: http://localhost:8000
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+  schemas:
+    FieldValue:
+      type: object
+      properties:
+        value: { type: string }
+        confidence: { type: number, format: float, minimum: 0, maximum: 1 }
+    ExtractionItem:
+      type: object
+      properties:
+        description: { $ref: "#/components/schemas/FieldValue" }
+        hsn:         { $ref: "#/components/schemas/FieldValue" }
+        qty:         { $ref: "#/components/schemas/FieldValue" }
+        rate:        { $ref: "#/components/schemas/FieldValue" }
+        amount:      { $ref: "#/components/schemas/FieldValue" }
+    ExtractionData:
+      type: object
+      properties:
+        vendor_name:       { $ref: "#/components/schemas/FieldValue" }
+        vendor_gstin:      { $ref: "#/components/schemas/FieldValue" }
+        customer_name:     { $ref: "#/components/schemas/FieldValue" }
+        customer_gstin:    { $ref: "#/components/schemas/FieldValue" }
+        document_number:   { $ref: "#/components/schemas/FieldValue" }
+        document_date:     { $ref: "#/components/schemas/FieldValue" }
+        subtotal:          { $ref: "#/components/schemas/FieldValue" }
+        cgst:              { $ref: "#/components/schemas/FieldValue" }
+        sgst:              { $ref: "#/components/schemas/FieldValue" }
+        igst:              { $ref: "#/components/schemas/FieldValue" }
+        total_tax:         { $ref: "#/components/schemas/FieldValue" }
+        grand_total:       { $ref: "#/components/schemas/FieldValue" }
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ExtractionItem" }
+    ValidationResult:
+      type: object
+      properties:
+        gstin_valid:         { type: boolean }
+        date_valid:          { type: boolean }
+        amounts_reconciled:  { type: boolean }
+        tax_reconciled:      { type: boolean }
+        duplicate_detected:  { type: boolean }
+        errors:
+          type: array
+          items: { type: string }
+    ExtractionResponse:
+      type: object
+      required: [status, document_id, document_type, overall_confidence, data, validation]
+      properties:
+        status: { type: string, example: success }
+        document_id: { type: string, format: uuid }
+        document_type:
+          type: string
+          enum: [TAX_INVOICE, DELIVERY_CHALLAN, PACKING_LIST, PURCHASE_ORDER, CREDIT_NOTE, DEBIT_NOTE, EWAY_BILL, UNKNOWN]
+        overall_confidence: { type: number, format: float }
+        processing_time_ms: { type: integer }
+        data: { $ref: "#/components/schemas/ExtractionData" }
+        validation: { $ref: "#/components/schemas/ValidationResult" }
+        review_required: { type: boolean }
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+paths:
+  /api/v1/auth/token:
+    post:
+      tags: [auth]
+      security: []
+      summary: Exchange email + password for a JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string }
+      responses:
+        "200":
+          description: JWT issued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token: { type: string }
+                  token_type: { type: string, default: bearer }
+                  expires_in: { type: integer }
+
+  /api/v1/auth/api-key:
+    post:
+      tags: [auth]
+      summary: Mint a new API key for the current tenant (JWT required)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                rate_limit_per_minute: { type: integer, default: 60 }
+      responses:
+        "201":
+          description: API key minted (shown once)
+
+  /api/v1/extract:
+    post:
+      tags: [extract]
+      summary: OCR + LLM extraction of a GST document
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                async:
+                  type: boolean
+                  default: false
+                webhook_url:
+                  type: string
+                  format: uri
+      responses:
+        "200":
+          description: Extraction result
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtractionResponse" }
+        "413": { description: file_too_large }
+        "415": { description: unsupported_media }
+        "401": { description: unauthorized }
+        "429": { description: rate_limit_exceeded }
+
+  /api/v1/documents:
+    get:
+      tags: [documents]
+      summary: List tenant documents (paginated)
+      parameters:
+        - { in: query, name: page,      schema: { type: integer, default: 1 } }
+        - { in: query, name: page_size, schema: { type: integer, default: 20 } }
+        - { in: query, name: status,    schema: { type: string } }
+      responses: { "200": { description: list } }
+
+  /api/v1/documents/{document_id}:
+    get:
+      tags: [documents]
+      parameters:
+        - { in: path, name: document_id, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: Extraction for this document
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ExtractionResponse" }
+        "404": { description: not_found }
+
+  /api/v1/review-queue:
+    get:
+      tags: [review]
+      summary: List items pending human review
+      responses: { "200": { description: list } }
+
+  /api/v1/review-queue/{item_id}:
+    patch:
+      tags: [review]
+      parameters:
+        - { in: path, name: item_id, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [approved, rejected] }
+                notes:  { type: string }
+      responses: { "200": { description: updated } }
+
+  /api/v1/tenants/usage:
+    get:
+      tags: [tenants]
+      responses: { "200": { description: usage stats } }
+
+  /api/v1/health:
+    get:
+      tags: [health]
+      security: []
+      responses: { "200": { description: status } }
+
+  /api/v1/metrics:
+    get:
+      tags: [health]
+      security: []
+      responses:
+        "200":
+          description: Prometheus exposition
+          content:
+            text/plain: {}

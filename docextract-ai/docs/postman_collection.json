@@ -1,0 +1,179 @@
+{
+  "info": {
+    "name": "DocExtract AI",
+    "description": "Production-grade document intelligence SaaS API for Indian GST documents.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      { "key": "key", "value": "X-API-Key", "type": "string" },
+      { "key": "value", "value": "{{api_key}}", "type": "string" },
+      { "key": "in", "value": "header", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "api_key", "value": "dx_replace_me" },
+    { "key": "jwt", "value": "" },
+    { "key": "document_id", "value": "" },
+    { "key": "review_item_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login (JWT)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/token",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@acme.test\",\n  \"password\": \"ChangeMe!123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Mint API Key",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+            },
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/auth/api-key",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"production-key\",\n  \"rate_limit_per_minute\": 120\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Extract",
+      "item": [
+        {
+          "name": "Extract Document (sync)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/extract",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" },
+                { "key": "async", "value": "false", "type": "text" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Extract Document (async + webhook)",
+          "request": {
+            "method": "POST",
+            "url": "{{base_url}}/api/v1/extract",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" },
+                { "key": "async", "value": "true", "type": "text" },
+                { "key": "webhook_url", "value": "https://yourapp.example.com/webhooks/docextract", "type": "text" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Documents",
+      "item": [
+        {
+          "name": "List Documents",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/documents?page=1&page_size=20",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }]
+          }
+        },
+        {
+          "name": "Get Document",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/documents/{{document_id}}",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Review Queue",
+      "item": [
+        {
+          "name": "List Pending Reviews",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/review-queue?status=pending&limit=50",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }]
+          }
+        },
+        {
+          "name": "Approve / Reject",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{jwt}}", "type": "string" }]
+            },
+            "method": "PATCH",
+            "url": "{{base_url}}/api/v1/review-queue/{{review_item_id}}",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\",\n  \"notes\": \"verified manually\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Tenants",
+      "item": [
+        {
+          "name": "Usage",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/tenants/usage",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health & Metrics",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/health"
+          }
+        },
+        {
+          "name": "Prometheus Metrics",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/metrics"
+          }
+        }
+      ]
+    }
+  ]
+}

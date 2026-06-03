@@ -1,0 +1,22 @@
+# syntax=docker/dockerfile:1.6
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        tesseract-ocr \
+        poppler-utils \
+        libgl1 \
+        libglib2.0-0 \
+        libsm6 \
+        libxext6 \
+        libxrender1 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --extra-index-url https://d33sy5i8bnduwe.cloudfront.net/simple/ -r requirements.txt
+COPY . .
+
+CMD ["celery", "-A", "app.workers.celery_app:celery_app", "worker", "--beat", "--loglevel=INFO", "--concurrency=4", "--prefetch-multiplier=1", "-Q", "document_processing,notifications"]
