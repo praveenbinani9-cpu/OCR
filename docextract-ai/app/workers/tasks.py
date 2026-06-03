@@ -6,12 +6,15 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from sqlalchemy import func, select
+
 from app.core.database import db_session
 from app.core.logging import get_logger
 from app.models.document import Document, DocumentStatus
 from app.models.tenant import Tenant
+from app.models.webhook_delivery import WebhookDelivery
 from app.services.storage import storage_service
-from app.services.webhook import post_webhook
+from app.services.webhook import deliver
 from app.workers.celery_app import celery_app
 
 log = get_logger("worker")
@@ -39,7 +42,13 @@ def process_document(self, document_id: str, webhook_url: str | None = None) -> 
             if webhook_url:
                 tenant = db.get(Tenant, doc.tenant_id)
                 secret = tenant.webhook_secret if tenant else None
-                send_webhook.delay(webhook_url, response.model_dump(), secret)
+                send_webhook.delay(
+                    webhook_url,
+                    response.model_dump(),
+                    secret,
+                    str(doc.id),
+                    str(doc.tenant_id),
+                )
             return response.model_dump()
         except Exception as exc:
             doc.status = DocumentStatus.FAILED
@@ -49,13 +58,59 @@ def process_document(self, document_id: str, webhook_url: str | None = None) -> 
 
 
 @celery_app.task(name="app.workers.tasks.send_webhook", bind=True, max_retries=5)
-def send_webhook(self, url: str, payload: dict, secret: str | None = None) -> dict:
-    try:
-        status = post_webhook(url, payload, secret=secret)
-        return {"status": "delivered", "http_status": status}
-    except Exception as exc:
-        log.warning("webhook_retry", url=url, attempt=self.request.retries, error=str(exc))
-        raise self.retry(exc=exc, countdown=2 ** self.request.retries)
+def send_webhook(
+    self,
+    url: str,
+    payload: dict,
+    secret: str | None = None,
+    document_id: str | None = None,
+    tenant_id: str | None = None,
+) -> dict:
+    """Deliver one webhook attempt and persist the outcome.
+
+    Each Celery retry creates a separate ``webhook_deliveries`` row whose
+    ``attempt_count`` reflects the current attempt number for that
+    (document_id, url) pair. ``delivered_at`` is set only on 2xx responses.
+    """
+    result = deliver(url, payload, secret=secret)
+
+    if document_id and tenant_id:
+        with db_session() as db:
+            prior = db.execute(
+                select(func.count(WebhookDelivery.id)).where(
+                    WebhookDelivery.document_id == uuid.UUID(document_id),
+                    WebhookDelivery.url == url,
+                )
+            ).scalar_one()
+            entry = WebhookDelivery(
+                document_id=uuid.UUID(document_id),
+                tenant_id=uuid.UUID(tenant_id),
+                url=url,
+                response_status=result.status_code,
+                response_body=(result.body_excerpt or result.error or "") or None,
+                attempt_count=int(prior) + 1,
+                delivered_at=datetime.now(timezone.utc) if result.ok else None,
+            )
+            db.add(entry)
+            db.commit()
+
+    if not result.ok:
+        log.warning(
+            "webhook_retry",
+            url=url,
+            attempt=self.request.retries,
+            status=result.status_code,
+            error=result.error,
+        )
+        # exhausted retries → return failed dict instead of raising into Celery
+        if self.request.retries >= self.max_retries:
+            return {"status": "failed", "http_status": result.status_code}
+        raise self.retry(
+            exc=RuntimeError(f"webhook_failed_status={result.status_code}"),
+            countdown=2 ** self.request.retries,
+        )
+
+    return {"status": "delivered", "http_status": result.status_code}
 
 
 @celery_app.task(name="app.workers.tasks.cleanup_old_files")
@@ -64,8 +119,6 @@ def cleanup_old_files(days: int = 90) -> dict:
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     deleted = 0
     with db_session() as db:
-        from sqlalchemy import select
-
         rows = db.execute(
             select(Document).where(Document.created_at < cutoff)
         ).scalars().all()

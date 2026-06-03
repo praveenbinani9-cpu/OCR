@@ -5,10 +5,10 @@ import hashlib
 import hmac
 import json
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -22,15 +22,26 @@ SIGNATURE_VERSION = "v1"
 # Reject signatures older than this when verifying (anti-replay).
 DEFAULT_TOLERANCE_SECONDS = 300
 
+# Response bodies can be huge — keep an excerpt only.
+RESPONSE_BODY_LIMIT = 4096
+
+
+@dataclass(frozen=True)
+class DeliveryResult:
+    """Outcome of a single HTTP attempt against the receiver."""
+
+    status_code: int | None
+    body_excerpt: str
+    ok: bool
+    error: str | None = None
+
 
 def _sign_payload(timestamp: str, body: bytes, secret: str) -> str:
-    """HMAC-SHA256 over `f"{timestamp}.{body}"`. Returns hex digest."""
     signed_payload = f"{timestamp}.".encode() + body
     return hmac.new(secret.encode(), signed_payload, hashlib.sha256).hexdigest()
 
 
 def build_signature_header(timestamp: str, signature: str) -> str:
-    """Stripe-style header: `t=<unix>,v1=<hex>`."""
     return f"t={timestamp},{SIGNATURE_VERSION}={signature}"
 
 
@@ -67,12 +78,12 @@ def verify_signature(
     return hmac.compare_digest(expected, received)
 
 
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_exponential(multiplier=1, min=1, max=10),
-    reraise=True,
-)
-def post_webhook(url: str, payload: dict[str, Any], secret: str | None = None) -> int:
+def deliver(url: str, payload: dict[str, Any], secret: str | None = None) -> DeliveryResult:
+    """Send a webhook (no retry — caller / Celery owns the retry loop).
+
+    Always returns a ``DeliveryResult``. Never raises for connection / non-2xx;
+    callers inspect ``ok`` to decide whether to retry.
+    """
     body = json.dumps(payload, default=str).encode()
     headers = {"Content-Type": "application/json", "User-Agent": "DocExtract-AI/1.0"}
     if secret:
@@ -80,8 +91,40 @@ def post_webhook(url: str, payload: dict[str, Any], secret: str | None = None) -
         signature = _sign_payload(timestamp, body, secret)
         headers[SIGNATURE_HEADER] = build_signature_header(timestamp, signature)
         headers[TIMESTAMP_HEADER] = timestamp
-    with httpx.Client(timeout=settings.webhook_timeout_seconds) as client:
-        resp = client.post(url, content=body, headers=headers)
-    log.info("webhook_sent", url=url, status=resp.status_code, signed=bool(secret))
-    resp.raise_for_status()
-    return resp.status_code
+    try:
+        with httpx.Client(timeout=settings.webhook_timeout_seconds) as client:
+            resp = client.post(url, content=body, headers=headers)
+        excerpt = resp.text[:RESPONSE_BODY_LIMIT] if resp.text else ""
+        ok = 200 <= resp.status_code < 300
+        log.info(
+            "webhook_attempt",
+            url=url,
+            status=resp.status_code,
+            ok=ok,
+            signed=bool(secret),
+        )
+        return DeliveryResult(
+            status_code=resp.status_code, body_excerpt=excerpt, ok=ok
+        )
+    except Exception as exc:
+        log.warning("webhook_transport_error", url=url, error=str(exc))
+        return DeliveryResult(
+            status_code=None,
+            body_excerpt="",
+            ok=False,
+            error=str(exc)[:RESPONSE_BODY_LIMIT],
+        )
+
+
+def post_webhook(url: str, payload: dict[str, Any], secret: str | None = None) -> int:
+    """Legacy thin wrapper: raises on failure, returns status on success.
+
+    Preserved for older callers / docs. Prefer ``deliver()`` directly.
+    """
+    result = deliver(url, payload, secret=secret)
+    if not result.ok:
+        raise RuntimeError(
+            f"webhook_failed: status={result.status_code} error={result.error}"
+        )
+    assert result.status_code is not None
+    return result.status_code

@@ -92,11 +92,45 @@ client → nginx (TLS, per-IP rate-limit) → FastAPI api (uvicorn x4)
 ## Backlog (P0/P1/P2)
 - ~~P1: Webhook signature verification example in docs~~ ✅ done 2026-02-02
 - ~~P1: Per-tenant API-key rotation endpoint~~ ✅ done 2026-02-02
-- P2: Async webhook retry visibility (Celery flower)
-- P2: Per-document-type prompts (DELIVERY_CHALLAN, EWAY_BILL specialised hints)
-- P2: GST portal cross-verification (vendor GSTIN active check)
+- ~~P2: Async webhook retry visibility (webhook_deliveries log + endpoint)~~ ✅ done 2026-02-03
+- ~~P2: Per-document-type prompts (DELIVERY_CHALLAN, EWAY_BILL)~~ ✅ done 2026-02-03
+- P2: GST portal cross-verification (vendor GSTIN active check) — deferred
 - P2: Field-level human review UI (separate React app)
-- P2: S3 lifecycle policy for cold/glacier tiering after 90 days
+- P2: S3 lifecycle policy for cold/glacier tiering — deferred
+
+## 2026-02-03 update — webhook delivery log + prompt specialization
+- New model `WebhookDelivery` + migration `0003_webhook_deliveries`
+  (id, document_id, tenant_id, url, response_status, response_body, attempt_count,
+  delivered_at, created_at) with indexes on `document_id` and
+  `(tenant_id, created_at)`.
+- New endpoint: `GET /api/v1/webhook-deliveries?document_id={id}` —
+  tenant-scoped, paginated (default page_size=50, max 500), newest first,
+  requires `document_id` query param. Returns one row per HTTP attempt with
+  response excerpt (≤4 KB), attempt number, and `delivered_at` (set only on
+  2xx).
+- `services/webhook.py` refactored: new `deliver()` returns a `DeliveryResult`
+  dataclass (never raises) so the worker can log every attempt deterministically.
+  Removed in-process tenacity retry — Celery now owns the retry loop (cleaner
+  attempt accounting, no double-counting). Legacy `post_webhook()` retained as a
+  thin wrapper for backward compatibility.
+- `workers/tasks.send_webhook` now persists a `webhook_deliveries` row on each
+  invocation (success or failure), with `attempt_count` = (# of prior rows for
+  the same (document_id, url)) + 1. `delivered_at` set on 2xx. After
+  `max_retries` exhausted, returns `{status: "failed", http_status: …}`
+  instead of raising — the failed delivery is still in the log table.
+- `prompts/extraction.py`: added three specialization blocks (EWAY_BILL,
+  DELIVERY_CHALLAN, TAX_INVOICE) and `detect_document_type(ocr_text)` keyword
+  classifier that emits `EWAY_BILL | DELIVERY_CHALLAN | TAX_INVOICE | UNKNOWN`.
+  Ties resolve to `UNKNOWN` (let the LLM decide).
+- `services/extraction.py` now pre-classifies the OCR text and passes the hint
+  into `build_user_prompt(...,  document_type_hint=...)` so Claude receives
+  document-specific guidance (e.g. EWBs map Generator→vendor, Recipient→customer;
+  Delivery Challans expect zero tax).
+- OpenAPI 3.0.3 + Postman collection updated with the new route.
+- Tests: 9 prompt-specialization unit tests, 7 webhook-delivery tests
+  (tenant isolation on `document_id`, pagination + ordering, 422 missing
+  param, 401 unauthenticated, success row written, failure row written with
+  attempt_count incremented). **Total now 59 passing tests.**
 
 ## 2026-02-02 update — P1 items shipped
 - Added Stripe-style HMAC-SHA256 webhook signing: `X-DocExtract-Signature: t=<unix>,v1=<hex>` plus `X-DocExtract-Timestamp`, signed payload = `f"{ts}.{body}"`, replay window 300s, constant-time compare.

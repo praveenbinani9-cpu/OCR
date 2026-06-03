@@ -69,6 +69,7 @@ def test_post_webhook_signs_when_secret_present():
 
     class FakeResp:
         status_code = 200
+        text = '{"ok":true}'
 
         def raise_for_status(self) -> None:
             return None
@@ -106,6 +107,7 @@ def test_post_webhook_omits_signature_when_no_secret():
 
     class FakeResp:
         status_code = 200
+        text = "ok"
 
         def raise_for_status(self) -> None:
             return None

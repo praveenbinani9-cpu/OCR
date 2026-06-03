@@ -23,6 +23,7 @@ from app.schemas.tenant import (
     WebhookSecretCreated,
     WebhookSecretOut,
 )
+from app.schemas.webhook_delivery import WebhookDeliveryOut, WebhookDeliveryPage
 
 __all__ = [
     "APIKeyCreate",
@@ -45,4 +46,6 @@ __all__ = [
     "TenantUsage",
     "WebhookSecretCreated",
     "WebhookSecretOut",
+    "WebhookDeliveryOut",
+    "WebhookDeliveryPage",
 ]

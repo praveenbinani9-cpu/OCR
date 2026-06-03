@@ -222,6 +222,19 @@
       ]
     },
     {
+      "name": "Webhook Deliveries",
+      "item": [
+        {
+          "name": "List Deliveries for Document",
+          "request": {
+            "method": "GET",
+            "url": "{{base_url}}/api/v1/webhook-deliveries?document_id={{document_id}}&page=1&page_size=50",
+            "header": [{ "key": "X-API-Key", "value": "{{api_key}}" }]
+          }
+        }
+      ]
+    },
+    {
       "name": "Health & Metrics",
       "item": [
         {

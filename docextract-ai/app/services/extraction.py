@@ -15,6 +15,7 @@ from app.prompts.extraction import (
     SYSTEM_PROMPT,
     build_correction_prompt,
     build_user_prompt,
+    detect_document_type,
 )
 
 log = get_logger("extraction")
@@ -95,7 +96,12 @@ class ExtractionService:
         reraise=True,
     )
     async def extract(self, ocr_text: str, hints: str = "") -> dict[str, Any]:
-        user_prompt = build_user_prompt(ocr_text, hints)
+        document_type_hint = detect_document_type(ocr_text)
+        if document_type_hint != "UNKNOWN":
+            log.info("document_type_pre_classified", type=document_type_hint)
+        user_prompt = build_user_prompt(
+            ocr_text, hints, document_type_hint=document_type_hint
+        )
         try:
             raw = await self._llm_call(SYSTEM_PROMPT, user_prompt)
         except Exception as exc:

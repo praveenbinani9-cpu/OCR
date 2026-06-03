@@ -7,6 +7,7 @@ from app.models.extraction import Extraction
 from app.models.review import ReviewQueue, ReviewStatus
 from app.models.tenant import Tenant
 from app.models.user import User, UserRole
+from app.models.webhook_delivery import WebhookDelivery
 
 __all__ = [
     "Base",
@@ -20,4 +21,5 @@ __all__ = [
     "ReviewStatus",
     "AuditLog",
     "APIKey",
+    "WebhookDelivery",
 ]
