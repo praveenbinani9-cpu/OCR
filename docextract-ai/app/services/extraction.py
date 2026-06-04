@@ -1,13 +1,15 @@
-"""LLM extraction service. Supports Emergent Universal LLM Key and direct Anthropic SDK."""
+"""LLM extraction service — Google Gemini Flash."""
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import re
-import uuid
 from typing import Any
 
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+
+import google.generativeai as genai
 
 from app.core.config import settings
 from app.core.logging import get_logger
@@ -19,6 +21,12 @@ from app.prompts.extraction import (
 )
 
 log = get_logger("extraction")
+
+# Configure the SDK once at import time. ``configure`` is idempotent and reads
+# the key from settings (loaded from GEMINI_API_KEY env var).
+_API_KEY = settings.gemini_api_key or os.getenv("GEMINI_API_KEY", "")
+if _API_KEY:
+    genai.configure(api_key=_API_KEY)
 
 
 class LLMError(Exception):
@@ -33,7 +41,6 @@ def _strip_json_envelope(text: str) -> str:
     fence = _JSON_FENCE_RE.search(text)
     if fence:
         return fence.group(1)
-    # Greedy slice between first { and last }
     start = text.find("{")
     end = text.rfind("}")
     if start != -1 and end != -1 and end > start:
@@ -43,49 +50,25 @@ def _strip_json_envelope(text: str) -> str:
 
 class ExtractionService:
     def __init__(self) -> None:
-        self.provider = settings.llm_provider.lower()
-        self.model = settings.llm_model
+        self.model_name = settings.llm_model
 
-    # ---------- Provider calls ----------
+    # ---------- Provider call ----------
 
-    async def _call_emergent(self, system: str, user: str) -> str:
-        from emergentintegrations.llm.chat import LlmChat, UserMessage  # lazy
-
-        chat = LlmChat(
-            api_key=settings.emergent_llm_key,
-            session_id=f"docextract-{uuid.uuid4()}",
-            system_message=system,
-        ).with_model("anthropic", self.model)
-        # Force deterministic JSON
-        try:
-            chat = chat.with_params(temperature=0.0, max_tokens=4096)
-        except Exception:
-            pass
-        response = await chat.send_message(UserMessage(text=user))
-        return str(response)
-
-    async def _call_anthropic(self, system: str, user: str) -> str:
-        from anthropic import Anthropic  # lazy
-
-        client = Anthropic(api_key=settings.anthropic_api_key)
-        # SDK is sync; run in thread.
-        def _do() -> str:
-            resp = client.messages.create(
-                model=self.model,
-                max_tokens=4096,
-                temperature=0.0,
-                system=system,
-                messages=[{"role": "user", "content": user}],
-            )
-            parts = [block.text for block in resp.content if getattr(block, "type", "") == "text"]
-            return "".join(parts)
-
-        return await asyncio.to_thread(_do)
+    def _build_model(self, system: str) -> genai.GenerativeModel:
+        return genai.GenerativeModel(
+            self.model_name,
+            system_instruction=system,
+            generation_config={
+                "temperature": 0.0,
+                "max_output_tokens": 4096,
+                "response_mime_type": "application/json",
+            },
+        )
 
     async def _llm_call(self, system: str, user: str) -> str:
-        if self.provider == "anthropic" and settings.anthropic_api_key:
-            return await self._call_anthropic(system, user)
-        return await self._call_emergent(system, user)
+        model = self._build_model(system)
+        response = await asyncio.to_thread(model.generate_content, user)
+        return response.text or ""
 
     # ---------- Public API ----------
 

@@ -2,7 +2,7 @@
 
 Includes per-document-type hint blocks that get prepended when we can
 classify the OCR text up-front (EWAY_BILL / DELIVERY_CHALLAN / TAX_INVOICE).
-Specialized hints don't change the response schema — they help Claude
+Specialized hints don't change the response schema — they help the LLM
 extract the right fields and assign the correct ``document_type`` label.
 """
 from __future__ import annotations

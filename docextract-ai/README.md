@@ -10,7 +10,7 @@ Production-grade document intelligence SaaS API for Indian GST documents
 - **Queue**: Celery 5.4 with Redis broker
 - **Storage**: MinIO (S3-compatible)
 - **OCR**: PaddleOCR (primary) + pytesseract (fallback), OpenCV preprocessing
-- **LLM**: Anthropic Claude `claude-sonnet-4-20250514` (configurable; supports Emergent Universal LLM Key)
+- **LLM**: Google Gemini Flash `gemini-2.0-flash` (configurable via `LLM_MODEL`). Get a free key from https://aistudio.google.com
 - **Auth**: JWT (python-jose) + API Key (bcrypt-hashed)
 - **Rate limiting**: slowapi (per tenant)
 - **Observability**: structlog, Prometheus, Sentry
@@ -20,7 +20,7 @@ Production-grade document intelligence SaaS API for Indian GST documents
 
 ```bash
 cp .env.example .env
-# edit ANTHROPIC_API_KEY / EMERGENT_LLM_KEY
+# edit GEMINI_API_KEY (get a free key at https://aistudio.google.com)
 docker compose up -d --build
 docker compose exec api alembic upgrade head
 ```
@@ -68,7 +68,7 @@ client → nginx (TLS, rate limit) → FastAPI (api)
                                      ├── MinIO (raw file storage)
                                      └── Celery worker
                                             ├── OCR (Paddle / Tesseract)
-                                            ├── LLM extraction (Claude)
+                                            ├── LLM extraction (Gemini Flash)
                                             └── validation + webhook
 ```
 

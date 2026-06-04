@@ -50,6 +50,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile
     env_file: .env
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash}
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
@@ -61,6 +64,9 @@ services:
       context: .
       dockerfile: docker/Dockerfile.worker
     env_file: .env
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gemini-2.0-flash}
     depends_on:
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }

@@ -20,8 +20,7 @@ pdf2image==1.17.0
 opencv-python-headless==4.9.0.80
 Pillow==10.3.0
 numpy==1.26.4
-anthropic==0.28.0
-emergentintegrations
+google-generativeai>=0.8.0
 slowapi==0.1.9
 structlog==24.1.0
 prometheus-client==0.20.0

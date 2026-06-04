@@ -18,7 +18,7 @@ os.environ.setdefault("S3_BUCKET", "test")
 os.environ.setdefault("S3_ACCESS_KEY", "test")
 os.environ.setdefault("S3_SECRET_KEY", "test")
 os.environ.setdefault("JWT_SECRET", "test-secret-please-change")
-os.environ.setdefault("EMERGENT_LLM_KEY", "test-key")
+os.environ.setdefault("GEMINI_API_KEY", "test-key")
 os.environ.setdefault("OCR_ENGINE", "tesseract")
 
 import pytest  # noqa: E402

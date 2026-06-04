@@ -30,11 +30,9 @@ class Settings(BaseSettings):
     s3_secret_key: str = Field(...)
     s3_region: str = Field(default="us-east-1")
 
-    # LLM
-    anthropic_api_key: str = Field(default="")
-    emergent_llm_key: str = Field(default="")
-    llm_provider: str = Field(default="emergent")  # "emergent" | "anthropic"
-    llm_model: str = Field(default="claude-4-sonnet-20250514")
+    # LLM (Google Gemini)
+    gemini_api_key: str = Field(default="")
+    llm_model: str = Field(default="gemini-2.0-flash")
 
     # Auth
     jwt_secret: str = Field(...)
