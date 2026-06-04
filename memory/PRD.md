@@ -98,7 +98,41 @@ client → nginx (TLS, per-IP rate-limit) → FastAPI api (uvicorn x4)
 - P2: Field-level human review UI (separate React app)
 - P2: S3 lifecycle policy for cold/glacier tiering — deferred
 
-## 2026-02-03 update — webhook delivery log + prompt specialization
+## 2026-02-04 update — validation engine simplified (BREAKING)
+
+Per explicit user direction: stripped the validation surface down to exactly
+three checks. No external API calls anywhere (was already the case; now also
+documented as a hard invariant). No date parsing, no GSTIN structural regex,
+no tax-component reconciliation.
+
+**Kept** (only these three, plus errors list):
+1. `gstin_valid` — true iff every GSTIN present is exactly 15 characters
+   (whitespace stripped). No structure, no checksum, no portal lookup.
+2. `duplicate_detected` — DB check on
+   `(tenant_id, document_number, vendor_gstin, document_date)` already exists.
+3. `amounts_reconciled` — `subtotal + (cgst+sgst+igst, or total_tax if components
+   absent) ≈ grand_total` within ±1 rupee.
+
+**Removed** (BREAKING — `ValidationResult` shape changed):
+- `date_valid` (date parsing entirely dropped from `app/services/validation.py`)
+- `tax_reconciled` (no longer separately reported — folded into amounts check)
+- `parse_date()` helper removed
+- `GSTIN_REGEX` removed in favour of `len == 15`
+
+**Callers updated** in lockstep:
+- `app/api/v1/routes/extract.py` — correction-pass trigger now keys only on
+  `not validation.amounts_reconciled`.
+- `app/api/v1/routes/documents.py` — `review_required` aggregation dropped
+  `tax_reconciled` and `date_valid` checks.
+- `is_review_required()` — same.
+- `docs/openapi.yaml` — `ValidationResult` schema reduced to 4 fields.
+
+**Tests rewritten**: 11 tests in `test_validation_engine.py` covering only the
+three kept behaviours, including a guard test asserting the public surface is
+exactly `{gstin_valid, amounts_reconciled, duplicate_detected, errors}` so any
+future drift fails fast. **Total now 63 passing tests.**
+
+
 - New model `WebhookDelivery` + migration `0003_webhook_deliveries`
   (id, document_id, tenant_id, url, response_status, response_body, attempt_count,
   delivered_at, created_at) with indexes on `document_id` and

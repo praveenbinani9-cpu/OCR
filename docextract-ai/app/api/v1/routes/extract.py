@@ -162,15 +162,15 @@ async def _run_extraction_pipeline(
         data_node, db=db, tenant_id=str(doc.tenant_id)
     )
 
-    # Self-correction pass on amount mismatches
-    if not validation.amounts_reconciled or not validation.tax_reconciled:
+    # Self-correction pass on amount mismatch
+    if not validation.amounts_reconciled:
         try:
             corrected = await extraction_service.correct(ocr_text, validation.errors)
             corrected_data = corrected.get("data", {}) if isinstance(corrected, dict) else {}
             new_validation = validate_extraction(
                 corrected_data, db=db, tenant_id=str(doc.tenant_id)
             )
-            if new_validation.amounts_reconciled and new_validation.tax_reconciled:
+            if new_validation.amounts_reconciled:
                 data_node = corrected_data
                 validation = new_validation
                 document_type = str(

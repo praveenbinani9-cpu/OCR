@@ -54,10 +54,8 @@ components:
     ValidationResult:
       type: object
       properties:
-        gstin_valid:         { type: boolean }
-        date_valid:          { type: boolean }
-        amounts_reconciled:  { type: boolean }
-        tax_reconciled:      { type: boolean }
+        gstin_valid:         { type: boolean, description: "True iff GSTINs present are 15 characters." }
+        amounts_reconciled:  { type: boolean, description: "True iff subtotal + tax ≈ grand_total (±1)." }
         duplicate_detected:  { type: boolean }
         errors:
           type: array

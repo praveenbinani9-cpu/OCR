@@ -95,9 +95,7 @@ def get_document(
         review_required=any(
             [
                 not validation.amounts_reconciled,
-                not validation.tax_reconciled,
                 not validation.gstin_valid,
-                not validation.date_valid,
                 validation.duplicate_detected,
             ]
         ),

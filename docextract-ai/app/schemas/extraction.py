@@ -37,9 +37,7 @@ class ExtractionData(BaseModel):
 
 class ValidationResult(BaseModel):
     gstin_valid: bool = True
-    date_valid: bool = True
     amounts_reconciled: bool = True
-    tax_reconciled: bool = True
     duplicate_detected: bool = False
     errors: List[str] = Field(default_factory=list)
 
