@@ -51,7 +51,7 @@ class StorageService:
             Key=key,
             Body=data,
             ContentType=content_type,
-            ServerSideEncryption="AES256",
+
         )
         return key
 
@@ -60,7 +60,7 @@ class StorageService:
             fileobj,
             self._bucket,
             key,
-            ExtraArgs={"ContentType": content_type, "ServerSideEncryption": "AES256"},
+            ExtraArgs={"ContentType": content_type, },
         )
         return key
 
